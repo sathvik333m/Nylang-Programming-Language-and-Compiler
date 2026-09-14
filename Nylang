@@ -1,0 +1,57 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+COMPILER="$SCRIPT_DIR/compiler"
+
+build_compiler() {
+    make -s -C "$SCRIPT_DIR" compiler
+}
+
+usage() {
+    cat <<'EOF'
+Usage:
+  Nylang <source-file>
+  Nylang [--tokens|--ast|--symbols|--semantic] <source-file>
+
+To make this work in your shell from this project folder:
+  export PATH="/home/sathvik/compiler_1:$PATH"
+EOF
+}
+
+if [ "$#" -eq 0 ]; then
+    usage
+    exit 1
+fi
+
+build_compiler
+
+case "$1" in
+    --tokens|--ast|--symbols|--semantic)
+        exec "$COMPILER" "$@"
+        ;;
+esac
+
+if [ "$#" -ne 1 ]; then
+    usage
+    exit 1
+fi
+
+SOURCE_FILE="$1"
+
+if [ ! -f "$SOURCE_FILE" ]; then
+    echo "Source file not found: $SOURCE_FILE" >&2
+    exit 1
+fi
+
+SOURCE_NAME="$(basename "$SOURCE_FILE")"
+SOURCE_STEM="${SOURCE_NAME%.*}"
+ASM_FILE="$SCRIPT_DIR/$SOURCE_STEM.asm"
+OBJ_FILE="$SCRIPT_DIR/$SOURCE_STEM.o"
+EXE_FILE="$SCRIPT_DIR/$SOURCE_STEM"
+
+"$COMPILER" "$SOURCE_FILE" > "$ASM_FILE"
+nasm -felf64 "$ASM_FILE" -o "$OBJ_FILE"
+gcc "$OBJ_FILE" -no-pie -o "$EXE_FILE"
+exec "$EXE_FILE"
